@@ -321,6 +321,35 @@
     }
     .btn:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(180,150,120,0.2); }
 
+    /* ── 震动状态提示条 ── */
+    .vibe-toast {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+      padding: 10px 16px; text-align: center;
+      font-size: 0.8rem; font-weight: 500; color: #fff;
+      background: rgba(0,0,0,0.82);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transform: translateY(-100%);
+      transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+      pointer-events: none;
+    }
+    .vibe-toast.show {
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .vibe-toast .vibe-icon {
+      display: inline-block; margin-right: 4px;
+      animation: vibePulse 0.5s ease-in-out 3;
+    }
+    @keyframes vibePulse {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+    .vibe-toast .vibe-dismiss {
+      margin-left: 8px; text-decoration: underline;
+      cursor: pointer; pointer-events: auto;
+    }
+
     /* ── 完成弹窗 ── */
     .overlay {
       position: fixed; inset: 0; background: var(--overlay);
@@ -448,6 +477,11 @@
   </style>
 </head>
 <body>
+
+  <div class="vibe-toast" id="vibeToast">
+    <span class="vibe-icon">📳</span><span id="vibeMsg"></span>
+    <span class="vibe-dismiss" id="vibeDismiss">知道了</span>
+  </div>
 
   <div class="header">
     <div class="title">戳泡泡纸</div>
@@ -621,6 +655,41 @@
       try {
         vibrationSupported = !!navigator.vibrate;
       } catch(e) { vibrationSupported = false; }
+
+      // ── 震动状态检测与提示 ──
+      function checkVibrationSupport() {
+        const toast = document.getElementById('vibeToast');
+        const msg = document.getElementById('vibeMsg');
+        const dismiss = document.getElementById('vibeDismiss');
+        if (!toast || !msg) return;
+
+        // 检测是否为 iOS（iOS 完全不支持 Vibration API）
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+          || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+        if (vibrationSupported) {
+          // Android：震动可用，静默跳过
+          return;
+        }
+
+        // 震动不可用，显示提示
+        const reason = isIOS
+          ? 'iOS 系统不支持震动反馈，已为你开启视觉触感模式'
+          : '当前浏览器不支持震动反馈，已开启视觉触感模式';
+        msg.textContent = reason;
+
+        // 延迟显示，让页面先渲染
+        setTimeout(() => {
+          toast.classList.add('show');
+          // 5 秒后自动消失
+          setTimeout(() => toast.classList.remove('show'), 5000);
+        }, 800);
+
+        // 点击"知道了"关闭
+        dismiss.addEventListener('click', () => {
+          toast.classList.remove('show');
+        });
+      }
 
       function vibrate() {
         if (!vibrationSupported) return;
@@ -913,6 +982,7 @@
       }, { once: true });
 
       buildGrid();
+      checkVibrationSupport();
     })();
   </script>
 </body>
