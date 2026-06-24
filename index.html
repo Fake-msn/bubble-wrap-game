@@ -232,6 +232,17 @@
       transition: transform 0.04s ease-out;
     }
 
+    /* 戳破瞬间的视觉抖动（iOS 等不支持震动的设备兜底方案） */
+    .bubble-cell.bursting {
+      animation: cellBurst 0.12s ease-out;
+    }
+    @keyframes cellBurst {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.06); }
+      60%  { transform: scale(0.94); }
+      100% { transform: scale(1); }
+    }
+
     /* ── 戳破状态 ── */
     .bubble-dome.popped {
       pointer-events: none;
@@ -604,15 +615,22 @@
 
       // ── 震动引擎（带节流，模拟真实泡泡纸手感） ──
       let lastVibrateTime = 0;
-      const VIBRATE_THROTTLE = 55; // 两次震动之间最小间隔 ms，保证连续戳破有节奏感而非连续蜂鸣
+      const VIBRATE_THROTTLE = 55; // 两次震动之间最小间隔 ms
+      let vibrationSupported = false;
+      // 初始化时检测震动支持
+      try {
+        vibrationSupported = !!navigator.vibrate;
+      } catch(e) { vibrationSupported = false; }
+
       function vibrate() {
-        if (!navigator.vibrate) return;
+        if (!vibrationSupported) return;
         const now = performance.now();
         if (now - lastVibrateTime < VIBRATE_THROTTLE) return;
         lastVibrateTime = now;
         try {
-          // 15ms 短震：清脆利落，模拟捏破一个泡泡的瞬间触感
-          navigator.vibrate(15);
+          // 先取消待执行的震动队列，再触发新的短震
+          navigator.vibrate(0);
+          navigator.vibrate(20);
         } catch(e) {}
       }
 
@@ -663,6 +681,16 @@
         poppedCount++;
         SoundEngine.playPop();
         vibrate();
+
+        // 视觉抖动兜底（所有设备生效，iOS 等不支持震动的设备的主要反馈）
+        const cell = dome.parentElement;
+        if (cell && cell.classList.contains('bubble-cell')) {
+          cell.classList.add('bursting');
+          cell.addEventListener('animationend', function h() {
+            cell.classList.remove('bursting');
+            cell.removeEventListener('animationend', h);
+          }, { once: true });
+        }
 
         const domeRect = dome.getBoundingClientRect();
         const sheetRect = sheet.getBoundingClientRect();
