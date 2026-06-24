@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#2a1f1a">
+  <title>戳泡泡纸 - 解压神器</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --desk-wood: #3a2820;
+      --desk-edge: #2a1f1a;
+      --film-bg: rgba(220, 230, 240, 0.22);
+      --film-seam: rgba(180, 195, 210, 0.35);
+      --dome-top: rgba(255,255,255,0.85);
+      --dome-mid: rgba(200,220,240,0.5);
+      --dome-edge: rgba(160,190,215,0.55);
+      --dome-shadow: rgba(0,0,0,0.18);
+      --dome-rim: rgba(255,255,255,0.4);
+      --text: #e8ddd0;
+      --text-dim: #a89880;
+      --accent: #e0cdb5;
+      --accent-dark: #c4a88c;
+      --progress-bg: rgba(255,255,255,0.12);
+      --progress-fill: #e0cdb5;
+      --btn-bg: #e0cdb5;
+      --btn-text: #3a2820;
+      --overlay: rgba(0,0,0,0.5);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-select: none; user-select: none;
+      touch-action: manipulation;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh; min-height: 100dvh;
+      padding: 12px;
+      /* 木质桌面 */
+      background:
+        /* 木纹纹理 */
+        repeating-linear-gradient(
+          2deg,
+          transparent,
+          transparent 3px,
+          rgba(0,0,0,0.03) 3px,
+          rgba(0,0,0,0.03) 4px
+        ),
+        repeating-linear-gradient(
+          92deg,
+          transparent,
+          transparent 8px,
+          rgba(255,255,255,0.015) 8px,
+          rgba(255,255,255,0.015) 9px
+        ),
+        /* 桌面渐变 */
+        radial-gradient(ellipse at 50% 30%, #4a3528 0%, #3a2820 40%, #2a1f1a 100%);
+    }
+
+    /* ── 顶部标题 ── */
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+      width: 100%; max-width: min(92vw, 440px);
+    }
+    .header .title {
+      font-size: 1.4rem; font-weight: 700; color: var(--text);
+      letter-spacing: 0.06em; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .header .subtitle {
+      font-size: 0.75rem; color: var(--text-dim);
+    }
+
+    /* ── 统计行（泡泡面板上方，左对齐） ── */
+    .stats-row {
+      width: 100%;
+      max-width: min(92vw, 440px);
+      margin-bottom: 8px;
+      padding-left: 4px;
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .stats-row .stats-num {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .stats-row .stats-divider {
+      color: var(--text-dim);
+      margin: 0 1px;
+    }
+
+    /* 横屏竖向统计（默认隐藏） */
+    .stats-vert {
+      display: none;
+    }
+
+    /* ── 进度条（隐藏） ── */
+    .progress-bar { display: none; }
+    .progress-bar-fill { display: none; }
+
+    /* ── 泡泡纸整体容器（带3D透视） ── */
+    .wrap-stage {
+      perspective: 900px;
+      perspective-origin: 50% 45%;
+      width: 100%; max-width: min(92vw, 440px);
+      margin-bottom: 16px;
+    }
+
+    .bubble-wrap-sheet {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+      /* 3D微倾斜 */
+      transform: rotateX(4deg);
+      /* 塑料膜片底色 */
+      background:
+        /* 细微噪点纹理模拟塑料质感 */
+        radial-gradient(circle at 20% 30%, rgba(255,255,255,0.12) 0%, transparent 40%),
+        radial-gradient(circle at 75% 70%, rgba(255,255,255,0.06) 0%, transparent 35%),
+        linear-gradient(180deg, rgba(210,225,240,0.28) 0%, rgba(200,215,235,0.22) 50%, rgba(190,210,230,0.25) 100%);
+      border-radius: 18px;
+      padding: clamp(12px, 3vw, 22px) clamp(8px, 2.5vw, 18px);
+      /* 投影到桌面 */
+      box-shadow:
+        0 12px 40px rgba(0,0,0,0.35),
+        0 4px 12px rgba(0,0,0,0.2),
+        0 1px 2px rgba(0,0,0,0.15);
+      /* 塑料膜片边缘高光 */
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* 塑料膜片表面纹理覆盖层 */
+    .bubble-wrap-sheet::before {
+      content: '';
+      position: absolute; inset: 0; border-radius: 18px; pointer-events: none; z-index: 0;
+      background:
+        /* 塑料表面细微纹理 */
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(255,255,255,0.015) 2px,
+          rgba(255,255,255,0.015) 3px
+        ),
+        /* 表面光泽 */
+        radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.08) 0%, transparent 50%);
+    }
+
+    /* ── 泡泡网格 ── */
+    .bubble-grid {
+      position: relative; z-index: 1;
+      display: grid;
+      width: 100%; max-width: 100%;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* ── 单个泡泡单元格 ── */
+    .bubble-cell {
+      position: relative;
+      cursor: pointer;
+    }
+
+    /* 封边线条（塑料膜片热封线） */
+    .bubble-cell::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      background: transparent;
+      pointer-events: none;
+      /* 封边透明塑料线 */
+      box-shadow: 0 0 0 2px var(--film-seam);
+      z-index: 0;
+      opacity: 0.5;
+    }
+
+    /* ── 3D泡泡穹顶 ── */
+    .bubble-dome {
+      position: absolute;
+      inset: 2px;
+      border-radius: 50%;
+      z-index: 1;
+      transition: transform 0.08s ease-out;
+      /* 核心：多层径向渐变模拟3D穹顶 */
+      background:
+        /* 主高光 - 左上角强烈反光 */
+        radial-gradient(ellipse at 30% 25%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.6) 8%, transparent 25%),
+        /* 次高光 - 左上偏中 */
+        radial-gradient(ellipse at 38% 32%, rgba(255,255,255,0.5) 0%, transparent 20%),
+        /* 穹顶过渡色 */
+        radial-gradient(circle at 50% 50%, rgba(210,230,248,0.6) 0%, rgba(190,215,240,0.5) 40%, rgba(170,200,225,0.6) 70%, rgba(150,180,210,0.7) 100%);
+      /* 穹顶阴影 */
+      box-shadow:
+        /* 底部环境光遮蔽 */
+        inset 0 -4px 8px rgba(0,0,0,0.12),
+        /* 顶部边缘光 */
+        inset 0 2px 3px rgba(255,255,255,0.5),
+        /* 外部投影到薄膜上 */
+        0 3px 6px rgba(0,0,0,0.13),
+        0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    /* 穹顶表面光泽扫过 */
+    .bubble-dome::after {
+      content: '';
+      position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+      background: radial-gradient(ellipse at 28% 22%, rgba(255,255,255,0.35) 0%, transparent 45%);
+      z-index: 2;
+    }
+
+    /* 按压时微微下陷 */
+    .bubble-cell:active .bubble-dome:not(.popped) {
+      transform: scale(0.85);
+      transition: transform 0.04s ease-out;
+    }
+
+    /* ── 戳破状态 ── */
+    .bubble-dome.popped {
+      pointer-events: none;
+      /* 塌陷成扁平的塑料残留 */
+      background:
+        radial-gradient(circle at 50% 50%, rgba(180,200,220,0.25) 0%, rgba(160,185,210,0.2) 60%, rgba(140,170,195,0.3) 100%);
+      box-shadow:
+        inset 0 1px 2px rgba(0,0,0,0.08),
+        0 0 0 1px rgba(0,0,0,0.04);
+      transform: scale(0.15);
+      opacity: 0.35;
+      transition:
+        transform 0.22s cubic-bezier(0.34,1.56,0.64,1),
+        opacity 0.18s ease-out,
+        background 0.18s ease-out,
+        box-shadow 0.18s ease-out;
+    }
+
+    /* 戳破后薄膜残留的微小皱纹 */
+    .bubble-dome.popped::after {
+      background:
+        radial-gradient(circle at 30% 40%, rgba(255,255,255,0.15) 0%, transparent 50%),
+        radial-gradient(circle at 60% 55%, rgba(0,0,0,0.05) 0%, transparent 40%);
+      opacity: 0.6;
+    }
+
+    /* 恢复动画 */
+    .bubble-dome.resetting {
+      animation: domeRestore 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    }
+    @keyframes domeRestore {
+      0%   { transform: scale(0.15); opacity: 0.35; }
+      55%  { transform: scale(1.08); opacity: 1; }
+      75%  { transform: scale(0.95); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* ── 爆破粒子 ── */
+    .particle {
+      position: absolute; pointer-events: none; border-radius: 50%; z-index: 20;
+      animation: particleBurst 0.55s ease-out forwards;
+    }
+    @keyframes particleBurst {
+      0%   { transform: translate(0,0) scale(1); opacity: 0.9; }
+      100% { transform: translate(var(--dx),var(--dy)) scale(0); opacity: 0; }
+    }
+
+    /* 冲击波纹 */
+    .shockwave {
+      position: absolute; pointer-events: none;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.5);
+      z-index: 15;
+      animation: shockwaveOut 0.4s ease-out forwards;
+    }
+    @keyframes shockwaveOut {
+      0%   { width: 6px; height: 6px; opacity: 0.8; }
+      100% { width: 50px; height: 50px; opacity: 0; }
+    }
+
+    /* ── 底部 ── */
+    .footer {
+      width: 100%; max-width: min(92vw, 440px); margin-top: 16px;
+      display: flex; justify-content: center; gap: 12px;
+    }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 12px 32px; border: none; border-radius: 50px;
+      font-size: 0.95rem; font-weight: 600;
+      color: var(--btn-text);
+      background: linear-gradient(135deg, var(--btn-bg), var(--accent-dark));
+      box-shadow: 0 4px 16px rgba(180,150,120,0.3);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(180,150,120,0.2); }
+
+    /* ── 完成弹窗 ── */
+    .overlay {
+      position: fixed; inset: 0; background: var(--overlay);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .overlay.show { opacity: 1; pointer-events: auto; }
+    .modal {
+      background: #fff; border-radius: 24px;
+      padding: 32px 28px 24px; text-align: center;
+      max-width: 310px; width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      transform: translateY(40px) scale(0.9);
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .overlay.show .modal { transform: translateY(0) scale(1); }
+    .modal .emoji {
+      font-size: 3.5rem; display: block; margin-bottom: 12px;
+      animation: modalBounce 0.6s ease-out 0.2s both;
+    }
+    @keyframes modalBounce {
+      0%{transform:scale(0)}50%{transform:scale(1.3)}70%{transform:scale(0.9)}100%{transform:scale(1)}
+    }
+    .modal h2 { font-size: 1.4rem; color: #5d4e3a; margin-bottom: 6px; }
+    .modal p { font-size: 0.9rem; color: #8b7a65; margin-bottom: 20px; }
+    .modal .btn { width: 100%; }
+
+    /* ── 响应式 ── */
+    @media (max-width: 360px) {
+      .bubble-wrap-sheet { padding: 10px 8px; }
+      .bubble-cell::before { inset: -2px; box-shadow: 0 0 0 1.5px var(--film-seam); }
+    }
+
+    /* ── 横屏 / 宽屏适配 ── */
+    @media (orientation: landscape) and (max-height: 600px) {
+      body {
+        flex-direction: row;
+        align-items: stretch;
+        justify-content: space-between;
+        padding: 8px 12px;
+        gap: 0;
+      }
+
+      /* 隐藏竖屏统计和副标题 */
+      .stats-row { display: none; }
+      .header .subtitle { display: none; }
+
+      /* 标题：左侧居中竖向排列 */
+      .header {
+        flex-shrink: 0;
+        max-width: none;
+        width: auto;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+      }
+      .header .title {
+        font-size: 1.2rem;
+        letter-spacing: 0.12em;
+        text-align: center;
+      }
+
+      /* 泡泡面板：居中填满 */
+      .wrap-stage {
+        flex: 1 1 auto;
+        max-width: none;
+        margin: 0 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .bubble-wrap-sheet {
+        height: calc(100dvh - 16px);
+        max-height: 100%;
+        padding: clamp(8px, 2vw, 16px) clamp(8px, 2.5vw, 18px);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* 右侧区域：按钮(上) + 统计(下) */
+      .footer {
+        flex-shrink: 0;
+        max-width: none;
+        width: auto;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+      }
+      .footer .btn {
+        writing-mode: vertical-rl;
+        padding: 24px 14px;
+        font-size: 0.9rem;
+        letter-spacing: 0.1em;
+      }
+
+      /* 横屏竖向统计 */
+      .stats-vert {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.75rem;
+        color: var(--text-dim);
+        text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      }
+      .stats-vert .stats-num {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .stats-vert .stats-divider {
+        color: var(--text-dim);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="title">戳泡泡纸</div>
+    <div class="subtitle">捏一捏，解解压</div>
+  </div>
+
+  <div class="stats-row" id="statsRow">
+    <span class="stats-label">已戳</span>
+    <span class="stats-num" id="poppedCount">0</span>
+    <span class="stats-divider">/</span>
+    <span class="stats-num" id="totalCount">0</span>
+  </div>
+
+  <div class="wrap-stage">
+    <div class="bubble-wrap-sheet" id="sheet">
+      <div class="bubble-grid" id="bubbleGrid"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="btn" id="resetBtn">重新开始</button>
+    <div class="stats-vert" id="statsVert">
+      <span class="stats-label">已戳</span>
+      <span class="stats-num" id="poppedCount2">0</span>
+      <span class="stats-divider">/</span>
+      <span class="stats-num" id="totalCount2">0</span>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <span class="emoji">🎉</span>
+      <h2>全部戳完啦！</h2>
+      <p>太解压了，再来一轮吧～</p>
+      <button class="btn" id="replayBtn">再来一次</button>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const bubbleGrid = document.getElementById('bubbleGrid');
+      const sheet = document.getElementById('sheet');
+      const poppedCountEl = document.getElementById('poppedCount');
+      const totalCountEl = document.getElementById('totalCount');
+      const poppedCountEl2 = document.getElementById('poppedCount2');
+      const totalCountEl2 = document.getElementById('totalCount2');
+      const overlay = document.getElementById('overlay');
+      const resetBtn = document.getElementById('resetBtn');
+      const replayBtn = document.getElementById('replayBtn');
+
+      let poppedCount = 0;
+      let isResetting = false;
+      let isSwiping = false; // 是否正在滑动戳破中
+      let totalBubbles = 0; // 动态计算的总泡泡数
+
+      // ── 计算最优网格布局 ──
+      // 参考 Apple HIG (44pt 最小触控) 和 Material Design (48dp 触控目标)
+      // 泡泡尺寸范围 40px ~ 60px，间距约为泡泡尺寸的 18%
+      function calcGridLayout() {
+        const sheetStyle = getComputedStyle(sheet);
+        const padH = parseFloat(sheetStyle.paddingLeft) + parseFloat(sheetStyle.paddingRight);
+        const padV = parseFloat(sheetStyle.paddingTop) + parseFloat(sheetStyle.paddingBottom);
+
+        // 基于视口可用空间计算，而非 sheet 自身高度
+        const headerEl = document.querySelector('.header');
+        const statsRow = document.querySelector('.stats-row');
+        const footerEl = document.querySelector('.footer');
+        const wrapStage = document.querySelector('.wrap-stage');
+        const bodyPadding = parseFloat(getComputedStyle(document.body).paddingTop) * 2;
+        const margins = (headerEl ? parseFloat(getComputedStyle(headerEl).marginBottom) : 0)
+          + (statsRow ? parseFloat(getComputedStyle(statsRow).marginBottom) : 0)
+          + (wrapStage ? parseFloat(getComputedStyle(wrapStage).marginBottom) : 0)
+          + (footerEl ? parseFloat(getComputedStyle(footerEl).marginTop) : 0);
+        const usedByUI = (headerEl?.offsetHeight || 0) + (statsRow?.offsetHeight || 0) + (footerEl?.offsetHeight || 0) + bodyPadding + margins + 8;
+
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        let availW, availH;
+
+        // 横屏时基于 wrap-stage 尺寸计算
+        const isLandscape = window.innerWidth > window.innerHeight && vh < 600;
+        if (isLandscape) {
+          const stageStyle = getComputedStyle(wrapStage);
+          const stagePadH = parseFloat(stageStyle.paddingLeft) + parseFloat(stageStyle.paddingRight);
+          const stagePadV = parseFloat(stageStyle.paddingTop) + parseFloat(stageStyle.paddingBottom);
+          availW = (wrapStage.clientWidth || (vw * 0.7)) - stagePadH - padH;
+          availH = (wrapStage.clientHeight || (vh - 16)) - stagePadV - padV;
+        } else {
+          availW = Math.min(sheet.clientWidth || (vw * 0.9), vw * 0.92) - padH;
+          availH = (vh - usedByUI) - padV;
+        }
+
+        if (availW <= 0 || availH <= 0) {
+          return { cols: 6, rows: 8, bubbleSize: 44, gap: 8 };
+        }
+
+        // 尝试不同泡泡尺寸，找到最佳填充
+        let bestCols = 6, bestRows = 8, bestSize = 44, bestGap = 8;
+        let bestFill = 0;
+
+        for (let size = 60; size >= 40; size -= 2) {
+          const gap = Math.round(size * 0.18);
+          const cols = Math.floor((availW + gap) / (size + gap));
+          const rows = Math.floor((availH + gap) / (size + gap));
+          if (cols < 3 || rows < 4) continue;
+
+          const usedW = cols * size + (cols - 1) * gap;
+          const usedH = rows * size + (rows - 1) * gap;
+          const fill = (usedW / availW) * (usedH / availH);
+
+          if (fill > bestFill) {
+            bestFill = fill;
+            bestCols = cols;
+            bestRows = rows;
+            bestSize = size;
+            bestGap = gap;
+          }
+        }
+
+        return { cols: bestCols, rows: bestRows, bubbleSize: bestSize, gap: bestGap };
+      }
+
+      // ── 音效引擎 ──
+      const SoundEngine = (function() {
+        let audioCtx = null;
+        function getCtx() {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          if (audioCtx.state === 'suspended') audioCtx.resume();
+          return audioCtx;
+        }
+        function playPop() {
+          try {
+            const ctx = getCtx();
+            const now = ctx.currentTime;
+            const bufSize = ctx.sampleRate * 0.07;
+
+            // 低频砰声
+            const lb = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+            const ld = lb.getChannelData(0);
+            for (let i = 0; i < bufSize; i++) ld[i] = (Math.random()*2-1) * Math.exp(-i/(ctx.sampleRate*0.007));
+            const ls = ctx.createBufferSource(); ls.buffer = lb;
+            const lf = ctx.createBiquadFilter(); lf.type = 'bandpass';
+            lf.frequency.value = 180 + Math.random() * 280; lf.Q.value = 0.7;
+            const lg = ctx.createGain(); lg.gain.setValueAtTime(0.55, now);
+            lg.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+            ls.connect(lf); lf.connect(lg); lg.connect(ctx.destination);
+            ls.start(now); ls.stop(now + 0.07);
+
+            // 高频噼声
+            const hb = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+            const hd = hb.getChannelData(0);
+            for (let i = 0; i < bufSize; i++) hd[i] = (Math.random()*2-1) * Math.exp(-i/(ctx.sampleRate*0.0035));
+            const hs = ctx.createBufferSource(); hs.buffer = hb;
+            const hf = ctx.createBiquadFilter(); hf.type = 'bandpass';
+            hf.frequency.value = 1400 + Math.random() * 1300; hf.Q.value = 1.5;
+            const hg = ctx.createGain(); hg.gain.setValueAtTime(0.38, now);
+            hg.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+            hs.connect(hf); hf.connect(hg); hg.connect(ctx.destination);
+            hs.start(now); hs.stop(now + 0.05);
+          } catch(e) {}
+        }
+        return { playPop };
+      })();
+
+      // ── 震动 ──
+      function vibrate() {
+        if (navigator.vibrate) { try { navigator.vibrate(10); } catch(e) {} }
+      }
+
+      // ── 粒子 + 冲击波 ──
+      function spawnEffects(x, y) {
+        // 粒子
+        const count = 8;
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < count; i++) {
+          const p = document.createElement('div'); p.className = 'particle';
+          const angle = (Math.PI*2*i)/count + (Math.random()-0.5)*0.6;
+          const dist = 20 + Math.random() * 24;
+          const size = 2.5 + Math.random() * 4;
+          p.style.cssText = `
+            left:${x}px;top:${y}px;width:${size}px;height:${size}px;
+            background:rgba(210,225,245,${0.6+Math.random()*0.4});
+            --dx:${Math.cos(angle)*dist}px;--dy:${Math.sin(angle)*dist}px;
+          `;
+          frag.appendChild(p);
+        }
+        // 冲击波
+        const sw = document.createElement('div'); sw.className = 'shockwave';
+        sw.style.cssText = `left:${x-3}px;top:${y-3}px;`;
+        frag.appendChild(sw);
+
+        sheet.appendChild(frag);
+        setTimeout(() => {
+          sheet.querySelectorAll('.particle,.shockwave').forEach(el => el.remove());
+        }, 600);
+      }
+
+      // ── 进度 ──
+      function updateProgress() {
+        poppedCountEl.textContent = poppedCount;
+        totalCountEl.textContent = totalBubbles;
+        poppedCountEl2.textContent = poppedCount;
+        totalCountEl2.textContent = totalBubbles;
+      }
+
+      function checkComplete() {
+        if (poppedCount >= totalBubbles) setTimeout(() => overlay.classList.add('show'), 350);
+      }
+
+      // ── 戳破 ──
+      function popBubble(dome) {
+        if (dome.classList.contains('popped') || isResetting) return;
+        dome.classList.add('popped');
+        poppedCount++;
+        SoundEngine.playPop();
+        vibrate();
+
+        const domeRect = dome.getBoundingClientRect();
+        const sheetRect = sheet.getBoundingClientRect();
+        spawnEffects(
+          domeRect.left + domeRect.width/2 - sheetRect.left,
+          domeRect.top + domeRect.height/2 - sheetRect.top
+        );
+        updateProgress();
+        checkComplete();
+      }
+
+      // ── 从坐标获取泡泡穹顶元素 ──
+      function getDomeAtPoint(x, y) {
+        // 临时隐藏覆盖层，避免 elementFromPoint 被遮挡
+        const el = document.elementFromPoint(x, y);
+        if (!el) return null;
+        // 向上查找 bubble-dome
+        const dome = el.closest('.bubble-dome');
+        return dome;
+      }
+
+      // ── 滑动戳破逻辑 ──
+      function handleSwipeStart(e) {
+        if (isResetting) return;
+        e.preventDefault();
+        isSwiping = true;
+        sheet.setPointerCapture(e.pointerId);
+
+        // 戳破起始位置的泡泡
+        const dome = getDomeAtPoint(e.clientX, e.clientY);
+        if (dome && !dome.classList.contains('popped')) {
+          popBubble(dome);
+        }
+      }
+
+      function handleSwipeMove(e) {
+        if (!isSwiping || isResetting) return;
+        e.preventDefault();
+
+        const dome = getDomeAtPoint(e.clientX, e.clientY);
+        if (dome && !dome.classList.contains('popped')) {
+          popBubble(dome);
+        }
+      }
+
+      function handleSwipeEnd(e) {
+        if (!isSwiping) return;
+        isSwiping = false;
+        try { sheet.releasePointerCapture(e.pointerId); } catch(ex) {}
+      }
+
+      // ── 构建网格 ──
+      function buildGrid() {
+        const layout = calcGridLayout();
+        const { cols, rows, bubbleSize, gap } = layout;
+        totalBubbles = cols * rows;
+
+        // 应用动态列数和间距
+        bubbleGrid.style.gridTemplateColumns = `repeat(${cols}, ${bubbleSize}px)`;
+        bubbleGrid.style.gridTemplateRows = `repeat(${rows}, ${bubbleSize}px)`;
+        bubbleGrid.style.gap = `${gap}px`;
+
+        bubbleGrid.innerHTML = '';
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'bubble-cell';
+            cell.style.width = `${bubbleSize}px`;
+            cell.style.height = `${bubbleSize}px`;
+            cell.style.aspectRatio = 'auto';
+
+            const dome = document.createElement('div');
+            dome.className = 'bubble-dome';
+
+            cell.appendChild(dome);
+            bubbleGrid.appendChild(cell);
+          }
+        }
+
+        // 在 sheet 上统一处理 pointer 事件，支持单点和滑动
+        // 使用 { once: true } 的替代：先移除再添加，避免重复绑定
+        sheet.removeEventListener('pointerdown', handleSwipeStart);
+        sheet.removeEventListener('pointermove', handleSwipeMove);
+        sheet.removeEventListener('pointerup', handleSwipeEnd);
+        sheet.removeEventListener('pointercancel', handleSwipeEnd);
+        sheet.removeEventListener('pointerleave', handleSwipeEnd);
+        sheet.addEventListener('pointerdown', handleSwipeStart);
+        sheet.addEventListener('pointermove', handleSwipeMove);
+        sheet.addEventListener('pointerup', handleSwipeEnd);
+        sheet.addEventListener('pointercancel', handleSwipeEnd);
+        sheet.addEventListener('pointerleave', handleSwipeEnd);
+
+        poppedCount = 0;
+        updateProgress();
+      }
+
+      // ── 重置 ──
+      function resetGame(animate = true) {
+        if (isResetting) return;
+        isResetting = true;
+        overlay.classList.remove('show');
+
+        const domes = bubbleGrid.querySelectorAll('.bubble-dome');
+        if (animate && poppedCount > 0) {
+          domes.forEach((d, i) => {
+            if (d.classList.contains('popped')) {
+              setTimeout(() => {
+                d.classList.remove('popped');
+                d.classList.add('resetting');
+                d.addEventListener('animationend', function h() {
+                  d.classList.remove('resetting');
+                  d.removeEventListener('animationend', h);
+                }, { once: true });
+              }, i * 12);
+            }
+          });
+          setTimeout(() => {
+            poppedCount = 0; updateProgress(); isResetting = false;
+          }, domes.length * 12 + 500);
+        } else {
+          domes.forEach(d => { d.classList.remove('popped','resetting'); });
+          poppedCount = 0; updateProgress(); isResetting = false;
+        }
+      }
+
+      resetBtn.addEventListener('click', () => resetGame(true));
+      replayBtn.addEventListener('click', () => resetGame(true));
+      overlay.addEventListener('click', e => { if (e.target === overlay) resetGame(true); });
+
+      // 屏幕旋转/窗口大小变化时重建网格
+      let resizeTimer = null;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (!isResetting && !isSwiping) {
+            buildGrid();
+          }
+        }, 300);
+      });
+
+      // 初始化 AudioContext
+      document.addEventListener('touchstart', function ia() {
+        try { const c = new (window.AudioContext||window.webkitAudioContext)(); if(c.state==='suspended')c.resume(); } catch(e) {}
+      }, { once: true });
+      document.addEventListener('click', function ia() {
+        try { const c = new (window.AudioContext||window.webkitAudioContext)(); if(c.state==='suspended')c.resume(); } catch(e) {}
+      }, { once: true });
+
+      buildGrid();
+    })();
+  </script>
+</body>
+</html>
